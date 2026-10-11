@@ -1,0 +1,27 @@
+[package]
+name = "sdr-uhd"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+description = "A USRP B2xx driver over libuhd's C API: receive with device timestamps, transmit, the negotiated USB speed; README builds libuhd from source"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/MimoCAD/sdr-uhd"
+readme = "README.md"
+keywords = ["sdr", "usrp", "uhd", "radio", "b200"]
+categories = ["hardware-support"]
+# One libuhd per program.
+links = "uhd"
+
+[lib]
+# bindgen carries UHD's C doc comments through; their C snippets are not
+# Rust doctests.
+doctest = false
+
+[dependencies]
+# Error::Uhd and the shared sample, tuning and stream types.
+sdr-core = { version = "0.1", features = ["uhd"] }
+
+[build-dependencies]
+bindgen = "0.72"
+
+[dev-dependencies]
