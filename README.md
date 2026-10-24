@@ -298,8 +298,36 @@ libclang-dev`; Step 2's tarball is `cmake-4.4.2-linux-aarch64.tar.gz`
 needs `LD_LIBRARY_PATH=$SDRPREFIX/lib` for UHD's own utilities and the
 udev rule (`install -m 644 $SDRPREFIX/lib/uhd/utils/uhd-usrp.rules
 /etc/udev/rules.d/`); and `make -j4`. Steps 2–7 took about 25 minutes on
-a Pi 5. A Rust binary needs no environment: `build.rs` records the prefix
-as an rpath on Linux.
+a Pi 5.
+
+### Linking on Linux
+
+A link argument from a dependency's build script never reaches the
+binary that depends on it, so sdr-uhd's rpath covers only its own tests
+and examples. It publishes the prefix instead (`links = "uhd"`): a crate
+that depends on sdr-uhd directly puts this in its own `build.rs`, and its
+binaries then run with no `LD_LIBRARY_PATH`:
+
+```rust
+fn main() {
+    let Ok(prefix) = std::env::var("DEP_UHD_PREFIX") else { return };
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("linux") {
+        println!("cargo:rustc-link-arg=-Wl,--disable-new-dtags");
+        println!("cargo:rustc-link-arg=-Wl,-rpath,{prefix}/lib");
+        println!("cargo:rustc-link-arg=-Wl,-rpath-link,{prefix}/lib");
+    }
+}
+```
+
+`--disable-new-dtags` makes it a DT_RPATH, which (unlike a DT_RUNPATH)
+is also searched for libuhd's own Boost libraries. Without it, or with
+UHD in a prefix the system's loader does not search (`/etc/ld.so.conf`),
+the binary reads "libuhd.so… not found". An application that reaches
+sdr-uhd through another crate (sdr-driver) does not see DEP_UHD_PREFIX;
+it passes the same arguments with `RUSTFLAGS="-C
+link-arg=-Wl,--disable-new-dtags -C link-arg=-Wl,-rpath,$SDRPREFIX/lib"`,
+or installs UHD where the loader looks (`/usr/local/lib` and
+`ldconfig`).
 
 ## Rust gotchas
 

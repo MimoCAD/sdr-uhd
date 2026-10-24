@@ -38,6 +38,14 @@ fn main() {
     // not a DT_RUNPATH: only the former is consulted for libuhd's OWN
     // dependencies (its Boost libraries in the same prefix); with a RUNPATH
     // they read "not found" at run time even though libuhd itself resolves.
+    //
+    // A link argument from this script reaches only this crate's own
+    // targets (its tests and examples), never a binary that depends on it:
+    // the prefix is published as `links` metadata instead, which a direct
+    // dependent's build script reads as DEP_UHD_PREFIX and turns into the
+    // same three arguments for its own binaries (README.md, "Linking on
+    // Linux"). Without them the binary reads "libuhd.so… not found".
+    println!("cargo:prefix={prefix}");
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("linux") {
         println!("cargo:rustc-link-arg=-Wl,--disable-new-dtags");
         println!("cargo:rustc-link-arg=-Wl,-rpath,{prefix}/lib");
