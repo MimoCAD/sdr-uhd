@@ -2,10 +2,10 @@ use std::ffi::{CString, c_void};
 use std::ptr;
 use std::sync::Arc;
 
-use sdr_core::{Error, Iq, Result};
 use crate::ffi;
 use crate::usrp::UsrpInner;
 use crate::{fetch_string, global_last_error};
+use sdr_core::{Error, Iq, Result};
 
 /// A single-channel TX streamer taking sc16 ([`Iq`]) on the host side, for
 /// bench signals. `send` queues samples (blocking while UHD's buffers are
@@ -35,7 +35,11 @@ impl UsrpTx {
         let mut handle: ffi::uhd_tx_streamer_handle = ptr::null_mut();
         let e = unsafe { ffi::uhd_tx_streamer_make(&mut handle) };
         if e != ffi::uhd_error_UHD_ERROR_NONE || handle.is_null() {
-            return Err(Error::Uhd { code: e, context: "uhd_tx_streamer_make", message: global_last_error() });
+            return Err(Error::Uhd {
+                code: e,
+                context: "uhd_tx_streamer_make",
+                message: global_last_error(),
+            });
         }
         // From here the partly built streamer owns the handle: any `?`
         // below runs Drop, which null-checks md and frees what exists.
@@ -60,13 +64,21 @@ impl UsrpTx {
         let e = unsafe { ffi::uhd_usrp_get_tx_stream(s._usrp.0, &mut sargs, s.handle) };
         if e != ffi::uhd_error_UHD_ERROR_NONE {
             let h = s._usrp.0;
-            return Err(Error::Uhd { code: e, context: "uhd_usrp_get_tx_stream", message: fetch_string(|p, n| unsafe { ffi::uhd_usrp_last_error(h, p, n) }) });
+            return Err(Error::Uhd {
+                code: e,
+                context: "uhd_usrp_get_tx_stream",
+                message: fetch_string(|p, n| unsafe { ffi::uhd_usrp_last_error(h, p, n) }),
+            });
         }
         let e = unsafe { ffi::uhd_tx_streamer_max_num_samps(s.handle, &mut s.max_num_samps) };
         s.check(e, "uhd_tx_streamer_max_num_samps")?;
         let e = unsafe { ffi::uhd_tx_metadata_make(&mut s.md, false, 0, 0.0, false, false) };
         if e != ffi::uhd_error_UHD_ERROR_NONE {
-            return Err(Error::Uhd { code: e, context: "uhd_tx_metadata_make", message: global_last_error() });
+            return Err(Error::Uhd {
+                code: e,
+                context: "uhd_tx_metadata_make",
+                message: global_last_error(),
+            });
         }
         Ok(s)
     }
@@ -76,7 +88,11 @@ impl UsrpTx {
             Ok(())
         } else {
             let h = self.handle;
-            Err(Error::Uhd { code: e, context, message: fetch_string(|p, n| unsafe { ffi::uhd_tx_streamer_last_error(h, p, n) }) })
+            Err(Error::Uhd {
+                code: e,
+                context,
+                message: fetch_string(|p, n| unsafe { ffi::uhd_tx_streamer_last_error(h, p, n) }),
+            })
         }
     }
 
@@ -94,10 +110,23 @@ impl UsrpTx {
             let buf: *const c_void = iq[at..].as_ptr().cast();
             let mut buffs = [buf];
             let mut sent = 0usize;
-            let e = unsafe { ffi::uhd_tx_streamer_send(self.handle, buffs.as_mut_ptr(), n, &mut self.md, timeout_secs, &mut sent) };
+            let e = unsafe {
+                ffi::uhd_tx_streamer_send(
+                    self.handle,
+                    buffs.as_mut_ptr(),
+                    n,
+                    &mut self.md,
+                    timeout_secs,
+                    &mut sent,
+                )
+            };
             self.check(e, "uhd_tx_streamer_send")?;
             if sent == 0 {
-                return Err(Error::Device { backend: "uhd", context: "uhd_tx_streamer_send", message: "no samples taken within the timeout".into() });
+                return Err(Error::Device {
+                    backend: "uhd",
+                    context: "uhd_tx_streamer_send",
+                    message: "no samples taken within the timeout".into(),
+                });
             }
             self.in_burst = true;
             at += sent;
@@ -109,14 +138,28 @@ impl UsrpTx {
     /// device time `at` seconds when given (else now).
     pub fn send_burst(&mut self, iq: &[Iq], at: Option<f64>, timeout_secs: f64) -> Result<()> {
         let mut md: ffi::uhd_tx_metadata_handle = ptr::null_mut();
-        let (has_time, full, frac) = at.map_or((false, 0, 0.0), |t| (true, t.floor() as i64, t.fract()));
+        let (has_time, full, frac) =
+            at.map_or((false, 0, 0.0), |t| (true, t.floor() as i64, t.fract()));
         let e = unsafe { ffi::uhd_tx_metadata_make(&mut md, has_time, full, frac, true, true) };
         if e != ffi::uhd_error_UHD_ERROR_NONE {
-            return Err(Error::Uhd { code: e, context: "uhd_tx_metadata_make", message: global_last_error() });
+            return Err(Error::Uhd {
+                code: e,
+                context: "uhd_tx_metadata_make",
+                message: global_last_error(),
+            });
         }
         let mut buffs: [*const c_void; 1] = [iq.as_ptr().cast()];
         let mut sent = 0usize;
-        let e = unsafe { ffi::uhd_tx_streamer_send(self.handle, buffs.as_mut_ptr(), iq.len(), &mut md, timeout_secs, &mut sent) };
+        let e = unsafe {
+            ffi::uhd_tx_streamer_send(
+                self.handle,
+                buffs.as_mut_ptr(),
+                iq.len(),
+                &mut md,
+                timeout_secs,
+                &mut sent,
+            )
+        };
         unsafe { ffi::uhd_tx_metadata_free(&mut md) };
         self.check(e, "uhd_tx_streamer_send (burst)")
     }
@@ -128,13 +171,19 @@ impl UsrpTx {
         let mut md: ffi::uhd_async_metadata_handle = ptr::null_mut();
         let e = unsafe { ffi::uhd_async_metadata_make(&mut md) };
         if e != ffi::uhd_error_UHD_ERROR_NONE {
-            return Err(Error::Uhd { code: e, context: "uhd_async_metadata_make", message: global_last_error() });
+            return Err(Error::Uhd {
+                code: e,
+                context: "uhd_async_metadata_make",
+                message: global_last_error(),
+            });
         }
         let mut out = Vec::new();
         let mut wait = timeout_secs;
         loop {
             let mut valid = false;
-            let e = unsafe { ffi::uhd_tx_streamer_recv_async_msg(self.handle, &mut md, wait, &mut valid) };
+            let e = unsafe {
+                ffi::uhd_tx_streamer_recv_async_msg(self.handle, &mut md, wait, &mut valid)
+            };
             if e != ffi::uhd_error_UHD_ERROR_NONE || !valid {
                 break;
             }
@@ -155,12 +204,18 @@ impl UsrpTx {
         let mut eob: ffi::uhd_tx_metadata_handle = ptr::null_mut();
         let e = unsafe { ffi::uhd_tx_metadata_make(&mut eob, false, 0, 0.0, false, true) };
         if e != ffi::uhd_error_UHD_ERROR_NONE {
-            return Err(Error::Uhd { code: e, context: "uhd_tx_metadata_make", message: global_last_error() });
+            return Err(Error::Uhd {
+                code: e,
+                context: "uhd_tx_metadata_make",
+                message: global_last_error(),
+            });
         }
         let zero = [Iq::default()];
         let mut buffs: [*const c_void; 1] = [zero.as_ptr().cast()];
         let mut sent = 0usize;
-        let e = unsafe { ffi::uhd_tx_streamer_send(self.handle, buffs.as_mut_ptr(), 0, &mut eob, 1.0, &mut sent) };
+        let e = unsafe {
+            ffi::uhd_tx_streamer_send(self.handle, buffs.as_mut_ptr(), 0, &mut eob, 1.0, &mut sent)
+        };
         unsafe { ffi::uhd_tx_metadata_free(&mut eob) };
         self.in_burst = false;
         self.check(e, "uhd_tx_streamer_send (end of burst)")

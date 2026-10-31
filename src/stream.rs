@@ -2,14 +2,14 @@ use std::ffi::{CString, c_void};
 use std::ptr;
 use std::sync::Arc;
 
-use sdr_core::Iq;
-use sdr_core::{Error, Result};
 use crate::ffi;
-use sdr_core::IqStream;
-use sdr_core::RxSource;
-use sdr_core::{OtwFormat, RecvInfo, RxErrorCode, TimeSpec};
 use crate::usrp::UsrpInner;
 use crate::{fetch_string, global_last_error};
+use sdr_core::Iq;
+use sdr_core::IqStream;
+use sdr_core::RxSource;
+use sdr_core::{Error, Result};
+use sdr_core::{OtwFormat, RecvInfo, RxErrorCode, TimeSpec};
 
 fn otw_cstring(otw: OtwFormat) -> CString {
     CString::from(match otw {
@@ -308,10 +308,18 @@ impl UsrpStream {
     /// Issue a stream command, now or at device time `at` seconds.
     pub fn issue(&mut self, cmd: StreamCommand, at: Option<f64>) -> Result<()> {
         let (mode, n) = match cmd {
-            StreamCommand::StartContinuous => (ffi::uhd_stream_mode_t_UHD_STREAM_MODE_START_CONTINUOUS, 0),
-            StreamCommand::StopContinuous => (ffi::uhd_stream_mode_t_UHD_STREAM_MODE_STOP_CONTINUOUS, 0),
-            StreamCommand::NumSampsAndDone(n) => (ffi::uhd_stream_mode_t_UHD_STREAM_MODE_NUM_SAMPS_AND_DONE, n),
-            StreamCommand::NumSampsAndMore(n) => (ffi::uhd_stream_mode_t_UHD_STREAM_MODE_NUM_SAMPS_AND_MORE, n),
+            StreamCommand::StartContinuous => {
+                (ffi::uhd_stream_mode_t_UHD_STREAM_MODE_START_CONTINUOUS, 0)
+            }
+            StreamCommand::StopContinuous => {
+                (ffi::uhd_stream_mode_t_UHD_STREAM_MODE_STOP_CONTINUOUS, 0)
+            }
+            StreamCommand::NumSampsAndDone(n) => {
+                (ffi::uhd_stream_mode_t_UHD_STREAM_MODE_NUM_SAMPS_AND_DONE, n)
+            }
+            StreamCommand::NumSampsAndMore(n) => {
+                (ffi::uhd_stream_mode_t_UHD_STREAM_MODE_NUM_SAMPS_AND_MORE, n)
+            }
         };
         let mut c = stream_cmd(mode);
         c.num_samps = n;

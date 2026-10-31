@@ -62,7 +62,9 @@ pub fn find() -> Vec<String> {
             let mut n = 0usize;
             if ffi::uhd_string_vector_size(vec, &mut n) == ffi::uhd_error_UHD_ERROR_NONE {
                 for i in 0..n {
-                    out.push(fetch_string(|p, len| ffi::uhd_string_vector_at(vec, i, p, len)));
+                    out.push(fetch_string(|p, len| {
+                        ffi::uhd_string_vector_at(vec, i, p, len)
+                    }));
                 }
             }
         }

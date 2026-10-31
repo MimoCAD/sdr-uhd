@@ -27,8 +27,14 @@ struct Steps {
 impl Steps {
     fn step(&mut self, u: &Usrp, name: &str, result: impl std::fmt::Display) {
         self.n += 1;
-        let host = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
-        let dev = u.time_now().map(|t| format!("{t:.6}")).unwrap_or_else(|_| "-".into());
+        let host = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let dev = u
+            .time_now()
+            .map(|t| format!("{t:.6}"))
+            .unwrap_or_else(|_| "-".into());
         println!("STEP {} {name} host_ns={host} dev={dev} {result}", self.n);
         std::thread::sleep(GAP);
     }
@@ -47,7 +53,9 @@ fn receive(rx: &mut UsrpStream, secs: f64) -> sdr_core::Result<String> {
             first = info.time_spec.map(|t| t.full_secs as f64 + t.frac_secs);
         }
     }
-    Ok(format!("samples={n} overflows={overflows} first_time={first:?}"))
+    Ok(format!(
+        "samples={n} overflows={overflows} first_time={first:?}"
+    ))
 }
 
 /// Receive until a finite command's samples have come (or `secs`).
@@ -72,7 +80,10 @@ fn tone(n: usize, rate: f64, phase: &mut f64) -> Vec<Iq> {
     let a = 32767.0 * 0.3;
     (0..n)
         .map(|_| {
-            let s = Iq { i: (a * phase.cos()) as i16, q: (a * phase.sin()) as i16 };
+            let s = Iq {
+                i: (a * phase.cos()) as i16,
+                q: (a * phase.sin()) as i16,
+            };
             *phase = (*phase + TAU * TONE_OFFSET_HZ / rate) % TAU;
             s
         })
@@ -93,26 +104,60 @@ fn send_for(tx: &mut UsrpTx, secs: f64, rate: f64, phase: &mut f64) -> sdr_core:
 fn rx_script(u: &mut Usrp, s: &mut Steps) -> sdr_core::Result<()> {
     s.step(u, "opened", format!("mcr={:?}", u.master_clock_rate()));
     u.set_rx_rate(1e6, 0)?;
-    s.step(u, "rx_rate_1M", format!("rate={:?} mcr={:?}", u.rx_rate(0), u.master_clock_rate()));
+    s.step(
+        u,
+        "rx_rate_1M",
+        format!("rate={:?} mcr={:?}", u.rx_rate(0), u.master_clock_rate()),
+    );
     let r = u.set_rx_freq(&TuneRequest::auto(RX_HZ), 0)?;
     s.step(u, "rx_freq_300M", format!("{r:?}"));
     u.set_rx_gain(30.0, 0)?;
     s.step(u, "rx_gain_30", format!("gain={:?}", u.rx_gain(0)));
     u.set_rx_antenna("TX/RX", 0)?;
-    s.step(u, "rx_antenna_TXRX", format!("antenna={:?}", u.rx_antenna(0)));
+    s.step(
+        u,
+        "rx_antenna_TXRX",
+        format!("antenna={:?}", u.rx_antenna(0)),
+    );
     u.set_rx_antenna("RX2", 0)?;
-    s.step(u, "rx_antenna_RX2", format!("antenna={:?}", u.rx_antenna(0)));
+    s.step(
+        u,
+        "rx_antenna_RX2",
+        format!("antenna={:?}", u.rx_antenna(0)),
+    );
     u.set_rx_bandwidth(1e6, 0)?;
     s.step(u, "rx_bandwidth_1M", "");
     s.step(u, "sensor_names", format!("{:?}", u.rx_sensor_names(0)));
-    s.step(u, "sensor_lo_locked", u.rx_sensor("lo_locked", 0).unwrap_or_else(|e| e.to_string()));
-    s.step(u, "sensor_rssi", u.rx_sensor("rssi", 0).unwrap_or_else(|e| e.to_string()));
-    s.step(u, "sensor_temp", u.rx_sensor("temp", 0).unwrap_or_else(|e| e.to_string()));
-    s.step(u, "mboard_ref_locked", u.mboard_sensor("ref_locked").unwrap_or_else(|e| e.to_string()));
+    s.step(
+        u,
+        "sensor_lo_locked",
+        u.rx_sensor("lo_locked", 0)
+            .unwrap_or_else(|e| e.to_string()),
+    );
+    s.step(
+        u,
+        "sensor_rssi",
+        u.rx_sensor("rssi", 0).unwrap_or_else(|e| e.to_string()),
+    );
+    s.step(
+        u,
+        "sensor_temp",
+        u.rx_sensor("temp", 0).unwrap_or_else(|e| e.to_string()),
+    );
+    s.step(
+        u,
+        "mboard_ref_locked",
+        u.mboard_sensor("ref_locked")
+            .unwrap_or_else(|e| e.to_string()),
+    );
     u.set_time_now_us(0)?;
     s.step(u, "set_time_0", "");
     let mut rx = u.rx_streamer(0, "", OtwFormat::Sc16)?;
-    s.step(u, "rx_streamer_sc16", format!("max_num_samps={}", rx.max_num_samps()));
+    s.step(
+        u,
+        "rx_streamer_sc16",
+        format!("max_num_samps={}", rx.max_num_samps()),
+    );
     rx.issue(StreamCommand::StartContinuous, None)?;
     let got = receive(&mut rx, 1.0)?;
     s.step(u, "start_continuous_recv_1s", got);
@@ -155,10 +200,22 @@ fn rx_script(u: &mut Usrp, s: &mut Steps) -> sdr_core::Result<()> {
     let got = receive(&mut rx, 0.5)?;
     rx.issue(StreamCommand::StopContinuous, None)?;
     let _ = receive(&mut rx, 0.3)?;
-    s.step(u, "rate_4M_sc16_recv_0.5s", format!("rate={:?} mcr={:?} {got}", u.rx_rate(0), u.master_clock_rate()));
+    s.step(
+        u,
+        "rate_4M_sc16_recv_0.5s",
+        format!(
+            "rate={:?} mcr={:?} {got}",
+            u.rx_rate(0),
+            u.master_clock_rate()
+        ),
+    );
     drop(rx);
     u.set_master_clock_rate(32e6)?;
-    s.step(u, "master_clock_32M", format!("mcr={:?}", u.master_clock_rate()));
+    s.step(
+        u,
+        "master_clock_32M",
+        format!("mcr={:?}", u.master_clock_rate()),
+    );
     u.set_rx_rate(2e6, 0)?;
     s.step(u, "rx_rate_2M_at_mcr32", format!("rate={:?}", u.rx_rate(0)));
     s.step(u, "end", "");
@@ -179,26 +236,50 @@ fn tx_script(u: &mut Usrp, s: &mut Steps) -> sdr_core::Result<()> {
     u.set_time_now_us(0)?;
     s.step(u, "set_time_0", "");
     let mut tx = u.tx_streamer(0)?;
-    s.step(u, "tx_streamer", format!("max_num_samps={}", tx.max_num_samps()));
+    s.step(
+        u,
+        "tx_streamer",
+        format!("max_num_samps={}", tx.max_num_samps()),
+    );
     let mut phase = 0.0;
     let n = send_for(&mut tx, 1.0, rate, &mut phase)?;
     tx.end_burst()?;
-    s.step(u, "tone_1s_then_end_burst", format!("sent={n} events={:?}", tx.async_events(0.5)?));
+    s.step(
+        u,
+        "tone_1s_then_end_burst",
+        format!("sent={n} events={:?}", tx.async_events(0.5)?),
+    );
     let at = u.time_now()? + 0.5;
     tx.send_burst(&tone(10_000, rate, &mut phase), Some(at), 2.0)?;
-    s.step(u, "timed_burst_10000", format!("at={at:.6} events={:?}", tx.async_events(1.0)?));
+    s.step(
+        u,
+        "timed_burst_10000",
+        format!("at={at:.6} events={:?}", tx.async_events(1.0)?),
+    );
     let a = send_for(&mut tx, 0.2, rate, &mut phase)?;
     std::thread::sleep(Duration::from_millis(500));
     let b = send_for(&mut tx, 0.2, rate, &mut phase)?;
     tx.end_burst()?;
-    s.step(u, "underflow_paused_0.5s", format!("sent={} events={:?}", a + b, tx.async_events(0.5)?));
+    s.step(
+        u,
+        "underflow_paused_0.5s",
+        format!("sent={} events={:?}", a + b, tx.async_events(0.5)?),
+    );
     let a = send_for(&mut tx, 0.3, rate, &mut phase)?;
     let r = u.set_tx_freq(&TuneRequest::auto(RX_HZ + 100e3), 0)?;
     let b = send_for(&mut tx, 0.3, rate, &mut phase)?;
     u.set_tx_gain(TX_GAIN_DB - 10.0, 0)?;
     let c = send_for(&mut tx, 0.3, rate, &mut phase)?;
     tx.end_burst()?;
-    s.step(u, "retune_and_gain_while_sending", format!("sent={} {r:?} events={:?}", a + b + c, tx.async_events(0.5)?));
+    s.step(
+        u,
+        "retune_and_gain_while_sending",
+        format!(
+            "sent={} {r:?} events={:?}",
+            a + b + c,
+            tx.async_events(0.5)?
+        ),
+    );
     s.step(u, "end", "");
     Ok(())
 }
@@ -228,7 +309,11 @@ fn duplex_script(u: &mut Usrp, s: &mut Steps) -> sdr_core::Result<()> {
     }
     tx.end_burst()?;
     rx.issue(StreamCommand::StopContinuous, None)?;
-    s.step(u, "duplex_1s", format!("sent={sent} got={got} events={:?}", tx.async_events(0.5)?));
+    s.step(
+        u,
+        "duplex_1s",
+        format!("sent={sent} got={got} events={:?}", tx.async_events(0.5)?),
+    );
     s.step(u, "end", "");
     Ok(())
 }

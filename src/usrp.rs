@@ -2,12 +2,12 @@ use std::ffi::CString;
 use std::ptr;
 use std::sync::Arc;
 
-use sdr_core::{Error, Result};
 use crate::ffi;
-use sdr_core::{OtwFormat, TunePolicy, TuneRequest, TuneResult};
 use crate::stream::UsrpStream;
 use crate::tx::UsrpTx;
 use crate::{cstr_lossy, fetch_string, global_last_error};
+use sdr_core::{Error, Result};
+use sdr_core::{OtwFormat, TunePolicy, TuneRequest, TuneResult};
 
 /// A motherboard's identity ([`Usrp::mboard_info`]).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -186,8 +186,20 @@ impl Usrp {
         let mut info: ffi::uhd_usrp_rx_info_t = unsafe { std::mem::zeroed() };
         let e = unsafe { ffi::uhd_usrp_get_rx_info(self.handle(), chan, &mut info) };
         self.check(e, "uhd_usrp_get_rx_info")?;
-        let text = |p: *mut std::ffi::c_char| if p.is_null() { String::new() } else { unsafe { std::ffi::CStr::from_ptr(p) }.to_string_lossy().into_owned() };
-        let out = MboardInfo { id: text(info.mboard_id), name: text(info.mboard_name), serial: text(info.mboard_serial) };
+        let text = |p: *mut std::ffi::c_char| {
+            if p.is_null() {
+                String::new()
+            } else {
+                unsafe { std::ffi::CStr::from_ptr(p) }
+                    .to_string_lossy()
+                    .into_owned()
+            }
+        };
+        let out = MboardInfo {
+            id: text(info.mboard_id),
+            name: text(info.mboard_name),
+            serial: text(info.mboard_serial),
+        };
         unsafe { ffi::uhd_usrp_rx_info_free(&mut info) };
         Ok(out)
     }
@@ -213,13 +225,21 @@ impl Usrp {
         let mut out = Vec::new();
         unsafe {
             if ffi::uhd_string_vector_make(&mut vec) != ffi::uhd_error_UHD_ERROR_NONE {
-                return Err(Error::Uhd { code: 0, context: "uhd_string_vector_make", message: global_last_error() });
+                return Err(Error::Uhd {
+                    code: 0,
+                    context: "uhd_string_vector_make",
+                    message: global_last_error(),
+                });
             }
             let e = ffi::uhd_usrp_get_rx_sensor_names(self.handle(), chan, &mut vec);
             let mut n = 0usize;
-            if e == ffi::uhd_error_UHD_ERROR_NONE && ffi::uhd_string_vector_size(vec, &mut n) == ffi::uhd_error_UHD_ERROR_NONE {
+            if e == ffi::uhd_error_UHD_ERROR_NONE
+                && ffi::uhd_string_vector_size(vec, &mut n) == ffi::uhd_error_UHD_ERROR_NONE
+            {
                 for i in 0..n {
-                    out.push(fetch_string(|p, len| ffi::uhd_string_vector_at(vec, i, p, len)));
+                    out.push(fetch_string(|p, len| {
+                        ffi::uhd_string_vector_at(vec, i, p, len)
+                    }));
                 }
             }
             ffi::uhd_string_vector_free(&mut vec);
@@ -231,20 +251,34 @@ impl Usrp {
     /// A receive sensor's reading, as UHD prints it (`lo_locked`, `rssi`, …).
     pub fn rx_sensor(&self, name: &str, chan: usize) -> Result<String> {
         let name = CString::new(name)?;
-        self.sensor(|h, v| unsafe { ffi::uhd_usrp_get_rx_sensor(h, name.as_ptr(), chan, v) }, "uhd_usrp_get_rx_sensor")
+        self.sensor(
+            |h, v| unsafe { ffi::uhd_usrp_get_rx_sensor(h, name.as_ptr(), chan, v) },
+            "uhd_usrp_get_rx_sensor",
+        )
     }
 
     /// A motherboard sensor's reading, as UHD prints it (`ref_locked`, …).
     pub fn mboard_sensor(&self, name: &str) -> Result<String> {
         let name = CString::new(name)?;
-        self.sensor(|h, v| unsafe { ffi::uhd_usrp_get_mboard_sensor(h, name.as_ptr(), 0, v) }, "uhd_usrp_get_mboard_sensor")
+        self.sensor(
+            |h, v| unsafe { ffi::uhd_usrp_get_mboard_sensor(h, name.as_ptr(), 0, v) },
+            "uhd_usrp_get_mboard_sensor",
+        )
     }
 
-    fn sensor(&self, get: impl FnOnce(ffi::uhd_usrp_handle, *mut ffi::uhd_sensor_value_handle) -> ffi::uhd_error, context: &'static str) -> Result<String> {
+    fn sensor(
+        &self,
+        get: impl FnOnce(ffi::uhd_usrp_handle, *mut ffi::uhd_sensor_value_handle) -> ffi::uhd_error,
+        context: &'static str,
+    ) -> Result<String> {
         let mut v: ffi::uhd_sensor_value_handle = ptr::null_mut();
         unsafe {
             if ffi::uhd_sensor_value_make(&mut v) != ffi::uhd_error_UHD_ERROR_NONE {
-                return Err(Error::Uhd { code: 0, context: "uhd_sensor_value_make", message: global_last_error() });
+                return Err(Error::Uhd {
+                    code: 0,
+                    context: "uhd_sensor_value_make",
+                    message: global_last_error(),
+                });
             }
             let e = get(self.handle(), &mut v);
             let text = fetch_string(|p, len| ffi::uhd_sensor_value_to_pp_string(v, p, len));
@@ -257,7 +291,9 @@ impl Usrp {
     /// Every command after this one is executed at device time `t`
     /// seconds, until [`Usrp::clear_command_time`].
     pub fn set_command_time(&mut self, t: f64) -> Result<()> {
-        let e = unsafe { ffi::uhd_usrp_set_command_time(self.handle(), t.floor() as i64, t.fract(), 0) };
+        let e = unsafe {
+            ffi::uhd_usrp_set_command_time(self.handle(), t.floor() as i64, t.fract(), 0)
+        };
         self.check(e, "uhd_usrp_set_command_time")
     }
 
@@ -319,7 +355,13 @@ impl Usrp {
 
     pub fn set_tx_freq(&mut self, req: &TuneRequest, chan: usize) -> Result<TuneResult> {
         let mut creq = request_to_c(req);
-        let mut cres = ffi::uhd_tune_result_t { clipped_rf_freq: 0.0, target_rf_freq: 0.0, actual_rf_freq: 0.0, target_dsp_freq: 0.0, actual_dsp_freq: 0.0 };
+        let mut cres = ffi::uhd_tune_result_t {
+            clipped_rf_freq: 0.0,
+            target_rf_freq: 0.0,
+            actual_rf_freq: 0.0,
+            target_dsp_freq: 0.0,
+            actual_dsp_freq: 0.0,
+        };
         let e = unsafe { ffi::uhd_usrp_set_tx_freq(self.handle(), &mut creq, chan, &mut cres) };
         self.check(e, "uhd_usrp_set_tx_freq")?;
         Ok(TuneResult {
